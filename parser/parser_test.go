@@ -622,3 +622,68 @@ func TestFunctionParameterParsing(t *testing.T) {
 		}
 	}
 }
+
+func TestCallExpressionParsing(t *testing.T) {
+	input := "add(1, 2 * 3, 4 + 5)"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParseErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program has not enough statements. got=%d", len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+
+	exp, ok := stmt.Expression.(*ast.CallExpression)
+	if !ok {
+		t.Fatalf("stmt.Expression is not ast.CallExpression. got=%T", stmt.Expression)
+	}
+
+	if !testIdentifier(t, exp.Function, "add") {
+		return
+	}
+
+	if len(exp.Arguments) != 3 {
+		t.Fatalf("exp.Arguments does not have enough arguments. got=%d", len(exp.Arguments))
+	}
+
+	testLiteralExpression(t, exp.Arguments[0], 1)
+	testInfixExpression(t, exp.Arguments[1], 2, "*", 3)
+	testInfixExpression(t, exp.Arguments[2], 4, "+", 5)
+}
+
+func TestCallExpressionArgumentParsing(t *testing.T) {
+	tests := []struct {
+		input     string
+		arguments []int64
+	}{
+		{input: "add()", arguments: []int64{}},
+		{input: "add(1)", arguments: []int64{1}},
+		{input: "add(1, 2, 3)", arguments: []int64{1, 2, 3}},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParseErrors(t, p)
+
+		stmt := program.Statements[0].(*ast.ExpressionStatement)
+		exp := stmt.Expression.(*ast.CallExpression)
+
+		if len(exp.Arguments) != len(tt.arguments) {
+			t.Errorf("length parameter wrong. want %d, got=%d",
+				len(tt.arguments), len(exp.Arguments))
+		}
+
+		for i, arg := range tt.arguments {
+			testLiteralExpression(t, exp.Arguments[i], arg)
+		}
+	}
+}

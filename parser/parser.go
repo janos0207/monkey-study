@@ -29,6 +29,7 @@ var precedence = map[token.TokenType]int{ // we can't use 'const'...
 	token.MINUS:    SUM,
 	token.ASTERISK: PRODUCT,
 	token.SLASH:    PRODUCT,
+	token.LPAREN:   CALL,
 }
 
 type (
@@ -69,6 +70,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.MINUS, p.parseInfixExpression)
 	p.registerInfix(token.ASTERISK, p.parseInfixExpression)
 	p.registerInfix(token.SLASH, p.parseInfixExpression)
+	p.registerInfix(token.LPAREN, p.parseCallExpression)
 
 	// read 2 token, both curToken & peekToken should be set
 	p.nextToken()
@@ -160,7 +162,8 @@ func (p *Parser) Errors() []string {
 }
 
 func (p *Parser) peekError(t token.TokenType) {
-	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
+	msg := fmt.Sprintf("expected next token to be %s, got %s instead. (curToken: %s)",
+		t, p.peekToken.Type, p.curToken.Literal)
 	p.errors = append(p.errors, msg)
 }
 
@@ -365,4 +368,34 @@ func (p *Parser) parseFunctionParameters() []*ast.Identifier {
 	}
 
 	return identifiers
+}
+
+func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
+	exp := &ast.CallExpression{Token: p.curToken, Function: function}
+	exp.Arguments = p.parseCallArguments()
+	return exp
+}
+
+func (p *Parser) parseCallArguments() []ast.Expression {
+	args := []ast.Expression{}
+
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+		return args
+	}
+
+	p.nextToken()
+	args = append(args, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		args = append(args, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return args
 }
